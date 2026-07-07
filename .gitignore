@@ -1,0 +1,21 @@
+# Secrets
+.env
+.env.local
+.env*.local
+
+# Dependencies & build
+node_modules/
+web/node_modules/
+web/.next/
+web/out/
+
+# Vercel
+web/.vercel/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+*.log
+
+# TypeScript
+*.tsbuildinfo

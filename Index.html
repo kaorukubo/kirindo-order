@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>青果 発注・振分</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    input[type="number"], input[type="date"], select { font-size: 16px; }
+    .tap-btn { min-height: 48px; font-weight: 700; }
+    .spinner { border: 3px solid #e5e7eb; border-top-color: #16a34a; border-radius: 50%; width: 28px; height: 28px; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .store-tab { min-width: 5.5rem; white-space: nowrap; font-size: 11px; }
+    .store-tab.active { background: #16a34a; color: #fff; }
+    .matrix-wrap { overflow: auto; max-height: calc(100vh - 220px); }
+    .matrix-table { border-collapse: separate; border-spacing: 0; min-width: 100%; }
+    .matrix-table th, .matrix-table td { border-bottom: 1px solid #e5e7eb; padding: 6px 4px; }
+    .matrix-table thead th { position: sticky; top: 0; background: #f0fdf4; z-index: 2; font-size: 12px; }
+    .matrix-table .sticky-col { position: sticky; left: 0; background: #fff; z-index: 1; min-width: 7rem; max-width: 7rem; }
+    .matrix-table thead .sticky-col { z-index: 3; background: #f0fdf4; }
+    .cell-input { width: 3rem; min-height: 40px; text-align: right; font-weight: 700; border: 2px solid #bfdbfe; border-radius: 8px; padding: 4px; }
+    .cell-input:focus { border-color: #2563eb; outline: none; }
+    .inp-num { width: 3.5rem; min-height: 42px; text-align: right; font-weight: 700; border: 2px solid #d1d5db; border-radius: 10px; padding: 4px 6px; }
+    .inp-loss { border-color: #fdba74; }
+    .inp-sales { border-color: #86efac; }
+    .top-bar { position: sticky; top: 0; z-index: 30; }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-900 min-h-screen pb-24">
+
+  <div id="loading" class="flex flex-col items-center py-20">
+    <div class="spinner"></div><p class="mt-4 text-gray-600">読込中...</p>
+  </div>
+  <div id="errorBox" class="hidden mx-3 mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm"></div>
+
+  <div id="app" class="hidden">
+    <!-- 上部固定: 発注計算 -->
+    <div class="top-bar bg-green-700 text-white shadow-lg">
+      <div class="px-3 py-2 flex items-center gap-2 flex-wrap">
+        <div class="flex-1 min-w-[120px]">
+          <label class="text-[10px] text-green-200 block">発注日</label>
+          <input type="date" id="orderDate" class="w-full rounded-lg px-2 py-1.5 text-gray-900 text-sm" />
+        </div>
+        <div class="text-center px-1">
+          <p class="text-[10px] text-green-200">納品</p>
+          <p id="scheduleDelivery" class="font-bold text-sm">-</p>
+        </div>
+        <div class="flex-1 min-w-[90px]">
+          <label class="text-[10px] text-green-200 block">天候</label>
+          <select id="weatherSelect" class="w-full rounded-lg px-2 py-1.5 text-gray-900 text-sm">
+            <option value="">選択</option>
+          </select>
+        </div>
+        <button id="btnCalculate" class="tap-btn bg-amber-400 hover:bg-amber-300 text-green-900 px-5 rounded-xl shadow-md text-base shrink-0">
+          発注を計算
+        </button>
+      </div>
+      <p id="weatherLine" class="px-3 pb-2 text-xs text-green-100 truncate"></p>
+      <nav class="flex bg-green-800 text-sm font-bold">
+        <button id="tabInput" class="flex-1 py-2.5 bg-green-600">入力</button>
+        <button id="tabResult" class="flex-1 py-2.5 text-green-200">確認</button>
+        <button id="tabLabel" class="flex-1 py-2.5 text-green-200">ラベル</button>
+      </nav>
+    </div>
+
+    <!-- 入力 -->
+    <section id="screenInput" class="mt-2">
+      <div class="mx-3 mb-2 grid grid-cols-2 gap-2">
+        <div class="bg-white rounded-xl px-3 py-2 shadow-sm">
+          <label class="text-[10px] text-gray-500 block">販売実績日</label>
+          <input type="date" id="salesDate" class="w-full rounded-lg px-1 py-1 text-sm border border-green-200" />
+          <p class="text-[10px] text-green-700 mt-0.5">今日届く分（検収日）</p>
+        </div>
+        <div class="bg-white rounded-xl px-3 py-2 shadow-sm">
+          <label class="text-[10px] text-gray-500 block">ロス確認日</label>
+          <input type="date" id="lossDate" class="w-full rounded-lg px-1 py-1 text-sm border border-orange-200" />
+          <p class="text-[10px] text-orange-700 mt-0.5">明日納品時に確定</p>
+        </div>
+      </div>
+      <div class="mx-3 mb-2 flex gap-2 overflow-x-auto pb-1" id="storeTabs"></div>
+      <div class="mx-3 bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="px-3 py-2 bg-gray-50 border-b flex justify-between items-center gap-2">
+          <p id="activeStoreLabel" class="font-bold text-sm truncate"></p>
+          <button type="button" id="btnReloadInputs" class="text-xs font-bold text-green-700 bg-green-50 px-2 py-1 rounded-lg shrink-0">実績読込</button>
+        </div>
+        <div class="grid grid-cols-[1fr_4rem_4rem] gap-1 px-2 py-1 text-xs font-bold text-gray-500 border-b bg-gray-50">
+          <span>商品</span>
+          <span class="text-center text-green-700" id="salesColLabel">販売</span>
+          <span class="text-center text-orange-700" id="lossColLabel">ロス</span>
+        </div>
+        <div id="productPanel" class="max-h-[calc(100vh-340px)] overflow-y-auto"></div>
+      </div>
+    </section>
+
+    <!-- 確認マトリクス -->
+    <section id="screenResult" class="hidden mt-2 px-2">
+      <div class="bg-white rounded-xl shadow-sm p-3 mb-2">
+        <p id="resultSummary" class="text-sm font-bold"></p>
+        <label class="flex items-center gap-2 mt-2 text-sm">
+          <input type="checkbox" id="showAllProducts" /> 発注0の商品も表示
+        </label>
+      </div>
+      <div class="matrix-wrap bg-white rounded-xl shadow-sm">
+        <table class="matrix-table w-full text-sm" id="matrixTable">
+          <thead id="matrixHead"></thead>
+          <tbody id="matrixBody"></tbody>
+        </table>
+      </div>
+      <div class="flex gap-2 mt-3 px-1 flex-wrap">
+        <button id="btnBack" class="tap-btn flex-1 min-w-[7rem] bg-gray-300 rounded-xl">戻る</button>
+        <button id="btnExportExcel" class="tap-btn flex-1 min-w-[7rem] bg-emerald-600 text-white rounded-xl shadow-lg">Excel書き出し</button>
+        <button id="btnSave" class="tap-btn flex-1 min-w-[7rem] bg-blue-600 text-white rounded-xl shadow-lg">確定保存</button>
+      </div>
+    </section>
+
+    <!-- ラベル -->
+    <section id="screenLabel" class="hidden mt-2 px-3 space-y-3">
+      <div class="bg-white rounded-xl p-4 shadow-sm">
+        <p class="font-bold">データ取込</p>
+        <p class="text-xs text-gray-500 mt-1">日常は「直近2週間」で十分（数秒）。初回のみ全件取込。</p>
+        <button id="btnImportDrive" class="tap-btn w-full mt-3 bg-blue-600 text-white rounded-xl">直近2週間取込</button>
+        <button id="btnImportDriveFull" class="tap-btn w-full mt-2 bg-gray-600 text-white rounded-xl text-sm">全件取込（初回）</button>
+        <p id="importProgress" class="text-xs text-blue-700 mt-2 hidden"></p>
+      </div>
+      <div class="bg-white rounded-xl p-4 shadow-sm">
+        <p class="font-bold">週次ラベル（直近1週間の販売合計）</p>
+        <p id="labelWeekInfo" class="text-sm text-green-700 mt-1"></p>
+        <button id="btnGenerateLabels" class="tap-btn w-full mt-3 bg-amber-500 text-white rounded-xl">今週のラベルを発行</button>
+      </div>
+      <div id="labelList" class="space-y-2"></div>
+    </section>
+  </div>
+
+  <div id="toast" class="hidden fixed bottom-20 left-3 right-3 bg-gray-900 text-white text-center py-3 rounded-xl z-40 text-sm"></div>
+  <div id="savingOverlay" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl p-6 flex flex-col items-center min-w-[200px]">
+      <div class="spinner"></div>
+      <p id="overlayMessage" class="mt-2 font-bold text-sm text-center">処理中...</p>
+    </div>
+  </div>
+
+<script>
+const DAY_NAMES = ['日','月','火','水','木','金','土'];
+const DELIVERY_LEAD_DAYS = 2;
+
+let master = null;
+let storeState = {};
+let calculatedResults = null;
+let activeStoreIdx = 0;
+let schedule = {};
+
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('orderDate').value = fmt(new Date());
+  bindEvents();
+  loadMaster();
+});
+
+function bindEvents() {
+  document.getElementById('orderDate').addEventListener('change', function () {
+    updateSchedule();
+    updateInputDates();
+    loadStoreInputs(false);
+    fetchWeather();
+  });
+  document.getElementById('salesDate').addEventListener('change', function () {
+    updateDateLabels();
+    loadStoreInputs(false);
+  });
+  document.getElementById('lossDate').addEventListener('change', function () {
+    updateDateLabels();
+    loadStoreInputs(false);
+  });
+  document.getElementById('btnReloadInputs').addEventListener('click', function () { loadStoreInputs(true); });
+  document.getElementById('btnCalculate').addEventListener('click', onCalculate);
+  document.getElementById('btnBack').addEventListener('click', function () { showScreen('input'); });
+  document.getElementById('btnExportExcel').addEventListener('click', onExportExcel);
+  document.getElementById('btnSave').addEventListener('click', onSave);
+  document.getElementById('btnGenerateLabels').addEventListener('click', onGenerateLabels);
+  document.getElementById('btnImportDrive').addEventListener('click', onImportDriveQuick);
+  document.getElementById('btnImportDriveFull').addEventListener('click', onImportDriveFull);
+  document.getElementById('tabInput').addEventListener('click', function () { showScreen('input'); });
+  document.getElementById('tabResult').addEventListener('click', function () { if (calculatedResults) showScreen('result'); });
+  document.getElementById('tabLabel').addEventListener('click', function () { showScreen('label'); });
+  document.getElementById('showAllProducts').addEventListener('change', renderMatrix);
+}
+
+function loadMaster() {
+  google.script.run
+    .withSuccessHandler(function (res) {
+      document.getElementById('loading').classList.add('hidden');
+      if (!res.success) { showError(res.message); return; }
+      master = res;
+      initState();
+      var ws = document.getElementById('weatherSelect');
+      ws.innerHTML = '<option value="">選択</option>';
+      (master.weatherOptions || []).forEach(function (w) {
+        var o = document.createElement('option'); o.value = w; o.textContent = w; ws.appendChild(o);
+      });
+      document.getElementById('app').classList.remove('hidden');
+      updateSchedule();
+      updateInputDates();
+      fetchWeather();
+      renderStoreTabs();
+      loadStoreInputs(false);
+      renderLabelList();
+      document.getElementById('labelWeekInfo').textContent = '対象週: ' + master.weekStart;
+    })
+    .withFailureHandler(function (e) {
+      document.getElementById('loading').classList.add('hidden');
+      showError(e.message || String(e));
+    })
+    .getMasterData();
+}
+
+function initState() {
+  storeState = {};
+  master.storeOrder.forEach(function (store) {
+    storeState[store] = {};
+    (master.storeProducts[store] || []).forEach(function (p) {
+      storeState[store][p.name] = { sales: 0, loss: 0 };
+    });
+  });
+}
+
+function getSalesDate() { return document.getElementById('salesDate').value; }
+function getLossDate() { return document.getElementById('lossDate').value; }
+
+function updateInputDates() {
+  var order = getOrderDate();
+  if (!order) return;
+  document.getElementById('salesDate').value = addDays(order, -1);
+  document.getElementById('lossDate').value = addDays(order, 1);
+  updateDateLabels();
+}
+
+function updateDateLabels() {
+  var sd = getSalesDate();
+  var ld = getLossDate();
+  document.getElementById('salesColLabel').textContent = sd ? shortDate(sd) : '販売';
+  document.getElementById('lossColLabel').textContent = ld ? shortDate(ld) : 'ロス';
+}
+
+function getOrderDate() { return document.getElementById('orderDate').value; }
+function getDeliveryDate() { return schedule.deliveryDate || addDays(getOrderDate(), DELIVERY_LEAD_DAYS); }
+function addDays(d, n) { var x = new Date(d + 'T00:00:00'); x.setDate(x.getDate() + n); return fmt(x); }
+function fmt(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function dayName(d) { return DAY_NAMES[new Date(d + 'T00:00:00').getDay()]; }
+function shortDate(d) { var p = d.split('-'); return Number(p[1]) + '/' + Number(p[2]); }
+function storeShort(s) { return (master.storeShortNames || {})[s] || s.slice(0, 4); }
+
+function updateSchedule() {
+  var o = getOrderDate();
+  if (!o) return;
+  schedule = { orderDate: o, deliveryDate: addDays(o, DELIVERY_LEAD_DAYS), deliveryDayName: dayName(addDays(o, DELIVERY_LEAD_DAYS)) };
+  document.getElementById('scheduleDelivery').textContent = shortDate(schedule.deliveryDate) + '(' + schedule.deliveryDayName + ')';
+}
+
+function loadStoreInputs(showToast) {
+  if (!master) return;
+  var salesDate = getSalesDate();
+  var lossDate = getLossDate();
+  if (!salesDate || !lossDate) return;
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) {
+        if (showToast) toast(res.message);
+        return;
+      }
+      master.storeOrder.forEach(function (store) {
+        (master.storeProducts[store] || []).forEach(function (p) {
+          var s = ((res.sales || {})[store] || {})[p.name];
+          var l = ((res.losses || {})[store] || {})[p.name];
+          storeState[store][p.name].sales = s != null ? s : 0;
+          storeState[store][p.name].loss = l != null ? l : 0;
+        });
+      });
+      renderProductPanel();
+      if (showToast) toast('実績を読み込みました');
+    })
+    .withFailureHandler(function (e) {
+      if (showToast) toast(e.message || String(e));
+    })
+    .getStoreInputData(salesDate, lossDate);
+}
+
+function fetchWeather() {
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (res.deliveryDate) {
+        schedule.deliveryDate = res.deliveryDate;
+        schedule.deliveryDayName = res.deliveryDayName;
+        document.getElementById('scheduleDelivery').textContent = shortDate(res.deliveryDate) + '(' + res.deliveryDayName + ')';
+      }
+      if (res.success && res.weather) {
+        document.getElementById('weatherSelect').value = res.weather;
+        document.getElementById('weatherLine').textContent = '神戸市予報 ' + res.weather + ' · 納品 ' + res.deliveryDate;
+      } else {
+        document.getElementById('weatherLine').textContent = res.message || '天候を手動選択';
+      }
+    })
+    .withFailureHandler(function () {})
+    .getKobeWeatherForecast(getOrderDate());
+}
+
+function renderStoreTabs() {
+  var el = document.getElementById('storeTabs');
+  el.innerHTML = '';
+  master.storeOrder.forEach(function (store, i) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'store-tab px-3 py-2.5 rounded-xl text-xs font-bold bg-white shadow-sm ' + (i === activeStoreIdx ? 'active' : 'text-gray-700');
+    btn.textContent = store;
+    btn.addEventListener('click', function () {
+      activeStoreIdx = i;
+      renderStoreTabs();
+      renderProductPanel();
+    });
+    el.appendChild(btn);
+  });
+}
+
+function renderProductPanel() {
+  var store = master.storeOrder[activeStoreIdx];
+  document.getElementById('activeStoreLabel').textContent = store;
+  var panel = document.getElementById('productPanel');
+  var products = master.storeProducts[store] || [];
+  panel.innerHTML = products.map(function (p) {
+    var st = storeState[store][p.name] || { sales: 0, loss: 0 };
+    return '<div class="grid grid-cols-[1fr_4rem_4rem] gap-1 items-center px-2 py-2 border-b border-gray-50">' +
+      '<div class="min-w-0"><p class="font-medium text-sm truncate">' + esc(p.name) + '</p>' +
+      '<p class="text-[10px] text-gray-400">陳列' + p.baseDisplay + '</p></div>' +
+      '<input type="number" min="0" class="inp-num inp-sales sales-inp" data-store="' + esc(store) + '" data-product="' + esc(p.name) + '" value="' + st.sales + '" />' +
+      '<input type="number" min="0" class="inp-num inp-loss loss-inp" data-store="' + esc(store) + '" data-product="' + esc(p.name) + '" value="' + st.loss + '" />' +
+    '</div>';
+  }).join('');
+
+  panel.querySelectorAll('.sales-inp').forEach(function (inp) {
+    inp.addEventListener('input', function () {
+      storeState[inp.dataset.store][inp.dataset.product].sales = Number(inp.value) || 0;
+    });
+  });
+  panel.querySelectorAll('.loss-inp').forEach(function (inp) {
+    inp.addEventListener('input', function () {
+      storeState[inp.dataset.store][inp.dataset.product].loss = Number(inp.value) || 0;
+    });
+  });
+}
+
+// ─── 計算 ───────────────────────────────────────────
+
+function collect(productName) {
+  var sales = [], losses = [];
+  master.storeOrder.forEach(function (s) {
+    var st = storeState[s][productName] || { sales: 0, loss: 0 };
+    sales.push(st.sales || 0);
+    losses.push(st.loss || 0);
+  });
+  return { sales: sales, losses: losses };
+}
+
+function getCoef(dayName, weather) {
+  var m = master.coefficientMap[dayName];
+  return m ? (Number(m[weather]) || 1) : 1;
+}
+
+function calcProduct(product, losses, dayName, weather) {
+  var unit = product.orderUnit || 1;
+  var coef = getCoef(dayName, weather);
+  var smap = master.storeProductMap[product.name] || {};
+  var needs = master.storeOrder.map(function (s, i) {
+    var base = Number(smap[s]) || 0;
+    return Math.max(0, Math.ceil(base * coef) - (Number(losses[i]) || 0));
+  });
+  var totalNeed = needs.reduce(function (a, b) { return a + b; }, 0);
+  var totalUnits = 0, cases = 0, remainder = 0;
+  if (totalNeed > 0) {
+    cases = Math.floor(totalNeed / unit);
+    remainder = totalNeed % unit;
+    if (remainder > 0) { cases++; remainder = 0; }
+    totalUnits = cases * unit;
+  }
+  var data = collect(product.name);
+  var allocations = distribute(product.name, needs, totalUnits);
+  return {
+    productName: product.name, orderUnit: unit, coefficient: coef,
+    needs: needs, totalUnits: totalUnits, cases: cases, remainder: remainder,
+    allocations: allocations, losses: data.losses, sales: data.sales,
+  };
+}
+
+/** CSV数量比率按分 → 販売比率優先、なければ必要数比率 */
+function distribute(productName, needs, totalUnits) {
+  if (totalUnits <= 0) return needs.map(function () { return 0; });
+  var ratios = (master.salesRatio || {})[productName];
+  var weights;
+  if (ratios && Object.keys(ratios).length) {
+    weights = master.storeOrder.map(function (s) { return Number(ratios[s]) || 0; });
+  } else {
+    weights = needs.slice();
+  }
+  var wSum = weights.reduce(function (a, b) { return a + b; }, 0);
+  if (wSum <= 0) {
+    weights = needs.slice();
+    wSum = weights.reduce(function (a, b) { return a + b; }, 0);
+  }
+  if (wSum <= 0) {
+    var b = Math.floor(totalUnits / master.storeOrder.length);
+    var a = weights.map(function () { return b; });
+    for (var i = 0; i < totalUnits - b * a.length; i++) a[i % a.length]++;
+    return a;
+  }
+  return splitInt(totalUnits, weights);
+}
+
+function splitInt(total, weights) {
+  var exact = weights.map(function (w) { return (w / weights.reduce(function (a,b){return a+b;},0)) * total; });
+  var floors = exact.map(function (v) { return Math.floor(v); });
+  var rem = total - floors.reduce(function (a,b){return a+b;},0);
+  var fr = exact.map(function (v,i){return {i:i,f:v-floors[i]};}).sort(function(a,b){return b.f-a.f;});
+  var r = floors.slice();
+  for (var j = 0; j < rem; j++) r[fr[j % fr.length].i]++;
+  return r;
+}
+
+function onCalculate() {
+  var weather = document.getElementById('weatherSelect').value;
+  if (!getOrderDate()) { toast('発注日を選択'); return; }
+  if (!weather) { toast('天候を選択'); return; }
+  var dn = dayName(getDeliveryDate());
+  calculatedResults = master.products.map(function (p) {
+    return calcProduct(p, collect(p.name).losses, dn, weather);
+  });
+  document.getElementById('resultSummary').textContent =
+    '発注 ' + getOrderDate() + ' → 納品 ' + getDeliveryDate() + '（' + dn + '）/ ' + weather + ' · CSV比率按分';
+  renderMatrix();
+  showScreen('result');
+}
+
+function renderMatrix() {
+  var showAll = document.getElementById('showAllProducts').checked;
+  var items = calculatedResults.filter(function (it) {
+    return showAll || it.totalUnits > 0;
+  });
+
+  var head = document.getElementById('matrixHead');
+  head.innerHTML = '<tr><th class="sticky-col text-left pl-2">商品</th>' +
+    '<th class="text-center text-xs">計</th>' +
+    master.storeOrder.map(function (s) {
+      return '<th class="text-center text-xs">' + esc(storeShort(s)) + '</th>';
+    }).join('') + '</tr>';
+
+  var body = document.getElementById('matrixBody');
+  body.innerHTML = items.map(function (item, ri) {
+    var origIdx = calculatedResults.indexOf(item);
+    var cells = master.storeOrder.map(function (s, si) {
+      return '<td class="text-center"><input type="number" min="0" class="cell-input matrix-cell" data-ri="' + origIdx + '" data-si="' + si + '" value="' + item.allocations[si] + '" /></td>';
+    }).join('');
+    return '<tr><td class="sticky-col pl-2"><p class="font-medium text-xs truncate">' + esc(item.productName) + '</p>' +
+      '<p class="text-[10px] text-gray-400">' + item.cases + 'cs</p></td>' +
+      '<td class="text-center font-bold text-green-700 text-sm total-cell" data-ri="' + origIdx + '">' + item.totalUnits + '</td>' +
+      cells + '</tr>';
+  }).join('');
+
+  body.querySelectorAll('.matrix-cell').forEach(function (inp) {
+    inp.addEventListener('change', function () {
+      var ri = Number(inp.dataset.ri), si = Number(inp.dataset.si);
+      calculatedResults[ri].allocations[si] = Number(inp.value) || 0;
+      var sum = calculatedResults[ri].allocations.reduce(function (a,b){return a+b;},0);
+      calculatedResults[ri].totalUnits = sum;
+      calculatedResults[ri].cases = Math.floor(sum / calculatedResults[ri].orderUnit);
+      calculatedResults[ri].remainder = sum % calculatedResults[ri].orderUnit;
+      var tc = body.querySelector('.total-cell[data-ri="' + ri + '"]');
+      if (tc) tc.textContent = sum;
+    });
+  });
+}
+
+function onSave() {
+  if (!calculatedResults) return;
+  document.getElementById('savingOverlay').classList.remove('hidden');
+  var toSave = calculatedResults.filter(function (it) { return it.totalUnits > 0; });
+  google.script.run
+    .withSuccessHandler(function (res) {
+      document.getElementById('savingOverlay').classList.add('hidden');
+      toast(res.success ? '✓ ' + res.message : res.message);
+    })
+    .withFailureHandler(function (e) {
+      document.getElementById('savingOverlay').classList.add('hidden');
+      toast(e.message || String(e));
+    })
+    .saveOrderResults({
+      targetDate: getDeliveryDate(),
+      orderDate: getOrderDate(),
+      weather: document.getElementById('weatherSelect').value,
+      storeOrder: master.storeOrder,
+      items: toSave,
+    });
+}
+
+function getExportPayload() {
+  if (!calculatedResults) return null;
+  var items = calculatedResults.filter(function (it) { return it.totalUnits > 0; });
+  if (!items.length) return null;
+  return {
+    targetDate: getDeliveryDate(),
+    orderDate: getOrderDate(),
+    weather: document.getElementById('weatherSelect').value,
+    storeOrder: master.storeOrder,
+    storeShortNames: master.storeShortNames || {},
+    items: items,
+  };
+}
+
+function buildPrintRows(payload) {
+  var items = payload.items;
+  var storeOrder = payload.storeOrder;
+  var orderDate = payload.orderDate;
+  var deliveryDate = payload.targetDate;
+  var arrivalDate = addDays(orderDate, 1);
+  var weather = payload.weather;
+  var rows = [];
+
+  rows.push(['畑光　様', '', '', '', '', '', '', '', '', 'Isaten Foods株式会社', '']);
+  rows.push(['', '', '', '', '', '', '', '', '', '〒652-0832 神戸市兵庫区鍛冶屋町2-1-2', '']);
+  rows.push([
+    '引取日', shortDate(deliveryDate) + ' (' + dayName(deliveryDate) + ')', '', '到着日',
+    shortDate(arrivalDate) + ' (' + dayName(arrivalDate) + ')', '', '発注日', orderDate, '天候', weather,
+  ]);
+  rows.push(['', 'キリン堂用 青果 発注・分荷表', '', '', '納品日', deliveryDate + ' (' + dayName(deliveryDate) + ')', '', '', '', 'TEL 078-219-3411', '']);
+  rows.push([]);
+
+  rows.push(['【発注一覧（畑光様）】']);
+  rows.push(['No', '商品名', '発注数', 'ケース']);
+  items.forEach(function (it, i) {
+    rows.push([i + 1, it.productName, it.totalUnits, it.cases]);
+  });
+  var totalUnits = items.reduce(function (a, it) { return a + it.totalUnits; }, 0);
+  var totalCases = items.reduce(function (a, it) { return a + it.cases; }, 0);
+  rows.push(['', '合計', totalUnits, totalCases]);
+  rows.push([]);
+
+  rows.push(['【店舗別振分】']);
+  var matrixHeader = ['商品名', '合計'];
+  storeOrder.forEach(function (s) { matrixHeader.push(storeShort(s)); });
+  rows.push(matrixHeader);
+  items.forEach(function (it) {
+    var row = [it.productName, it.totalUnits];
+    storeOrder.forEach(function (_s, si) { row.push(it.allocations[si] || 0); });
+    rows.push(row);
+  });
+  var storeTotals = storeOrder.map(function (_s, si) {
+    return items.reduce(function (a, it) { return a + (it.allocations[si] || 0); }, 0);
+  });
+  rows.push(['合計', totalUnits].concat(storeTotals));
+  return rows;
+}
+
+function downloadExcelClient(payload) {
+  if (typeof XLSX === 'undefined') {
+    throw new Error('Excelライブラリの読込に失敗しました');
+  }
+  var rows = buildPrintRows(payload);
+  var ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 5 }, { wch: 24 }, { wch: 8 }, { wch: 8 }, { wch: 8 },
+    { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 8 }, { wch: 28 }, { wch: 8 },
+  ];
+  ws['!pageSetup'] = { paperSize: 9, orientation: 'landscape', fitToWidth: 1, fitToHeight: 0 };
+  ws['!margins'] = { left: 0.5, right: 0.5, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3 };
+
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '発注書');
+  var fname = '畑光発注書_分荷表_' + payload.orderDate.replace(/-/g, '') + '.xlsx';
+  XLSX.writeFile(wb, fname);
+}
+
+function onExportExcel() {
+  var payload = getExportPayload();
+  if (!payload) {
+    toast(calculatedResults ? '発注する商品がありません' : '先に発注を計算してください');
+    return;
+  }
+
+  document.getElementById('savingOverlay').classList.remove('hidden');
+  try {
+    downloadExcelClient(payload);
+  } catch (e) {
+    document.getElementById('savingOverlay').classList.add('hidden');
+    toast(e.message || String(e));
+    return;
+  }
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      document.getElementById('savingOverlay').classList.add('hidden');
+      if (res.success) {
+        toast('✓ Excelダウンロード完了（スプレッドシートにも保存）');
+      } else {
+        toast('Excelダウンロード完了（シート保存: ' + res.message + '）');
+      }
+    })
+    .withFailureHandler(function () {
+      document.getElementById('savingOverlay').classList.add('hidden');
+      toast('✓ Excelをダウンロードしました');
+    })
+    .exportOrderToPrintSheet(payload);
+}
+
+function renderLabelList() {
+  var c = document.getElementById('labelList');
+  var labels = master.weeklyLabels || [];
+  if (!labels.length) { c.innerHTML = '<p class="text-center text-gray-500 py-6 text-sm">未発行</p>'; return; }
+  var byP = {};
+  labels.forEach(function (l) {
+    if (!byP[l.productName]) byP[l.productName] = 0;
+    byP[l.productName] += l.count;
+  });
+  c.innerHTML = Object.keys(byP).sort(function(a,b){return byP[b]-byP[a];}).slice(0,30).map(function (p) {
+    return '<div class="bg-white rounded-lg px-4 py-2 flex justify-between shadow-sm"><span>' + esc(p) + '</span><span class="font-bold text-amber-600">' + byP[p] + '枚</span></div>';
+  }).join('');
+}
+
+function onGenerateLabels() {
+  document.getElementById('savingOverlay').classList.remove('hidden');
+  google.script.run
+    .withSuccessHandler(function (res) {
+      document.getElementById('savingOverlay').classList.add('hidden');
+      if (res.success) { master.weeklyLabels = res.labels; renderLabelList(); toast('✓ ' + res.message); }
+      else toast(res.message);
+    })
+    .withFailureHandler(function (e) { document.getElementById('savingOverlay').classList.add('hidden'); toast(e.message); })
+    .generateWeeklyLabels(master.weekStart);
+}
+
+function setOverlay(msg) {
+  document.getElementById('overlayMessage').textContent = msg || '処理中...';
+  document.getElementById('savingOverlay').classList.remove('hidden');
+}
+
+function hideOverlay() {
+  document.getElementById('savingOverlay').classList.add('hidden');
+}
+
+function onImportDriveQuick() {
+  setOverlay('直近2週間を取込中...');
+  google.script.run
+    .withSuccessHandler(function (res) {
+      hideOverlay();
+      if (res.success) {
+        toast('✓ ' + res.message);
+        loadMaster();
+      } else {
+        toast(res.message);
+      }
+    })
+    .withFailureHandler(function (e) {
+      hideOverlay();
+      toast(e.message || String(e));
+    })
+    .importSalesFromDriveQuick_();
+}
+
+function onImportDriveFull() {
+  if (!confirm('全CSV（45ファイル）を取込します。1〜2分かかります。')) return;
+  var prog = document.getElementById('importProgress');
+  prog.classList.remove('hidden');
+  setOverlay('0/45 ファイル...');
+
+  function runBatch(idx) {
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res.success) {
+          hideOverlay();
+          prog.classList.add('hidden');
+          toast(res.message);
+          return;
+        }
+        var msg = res.processed + '/' + res.total + ' ファイル';
+        prog.textContent = msg;
+        setOverlay(msg);
+        if (res.done) {
+          hideOverlay();
+          prog.textContent = '全件完了';
+          toast('✓ 全件取込完了');
+          loadMaster();
+        } else {
+          runBatch(res.nextIndex);
+        }
+      })
+      .withFailureHandler(function (e) {
+        hideOverlay();
+        prog.classList.add('hidden');
+        toast(e.message || String(e));
+      })
+      .importSalesFromDriveBatch_(idx, { fullReset: idx === 0, batchSize: 10 });
+  }
+  runBatch(0);
+}
+
+function showScreen(name) {
+  document.getElementById('screenInput').classList.toggle('hidden', name !== 'input');
+  document.getElementById('screenResult').classList.toggle('hidden', name !== 'result');
+  document.getElementById('screenLabel').classList.toggle('hidden', name !== 'label');
+  var tabs = ['input','result','label'];
+  var ids = ['tabInput','tabResult','tabLabel'];
+  tabs.forEach(function (t, i) {
+    var el = document.getElementById(ids[i]);
+    if (t === name) { el.className = 'flex-1 py-2.5 bg-green-600 text-white font-bold'; }
+    else { el.className = 'flex-1 py-2.5 text-green-200 font-bold'; }
+  });
+}
+
+function showError(m) { var b = document.getElementById('errorBox'); b.textContent = m; b.classList.remove('hidden'); }
+function toast(m) { var t = document.getElementById('toast'); t.textContent = m; t.classList.remove('hidden'); setTimeout(function(){t.classList.add('hidden');},3500); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>

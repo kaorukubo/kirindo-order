@@ -1,0 +1,20 @@
+# ローカル開発用（GAS に送らない）
+node_modules/**
+sample-data/**
+*.csv
+*.mjs
+*.json
+!appsscript.json
+Code.js
+deploy-webapp.mjs
+README.md
+real-master.json
+get-project-content.mjs
+get-deployment.mjs
+list-deployments.mjs
+populate-sheets.mjs
+run-init.mjs
+analyze-*.mjs
+import-real-sales.mjs
+cleanup-gas-project.mjs
+gen-master.mjs
