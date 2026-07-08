@@ -9,6 +9,7 @@ export interface DateControlProps {
   salesDate: string;
   lossDate: string;
   weather: string;
+  holidayDates?: Set<string>;
   onOrderDateChange: (v: string) => void;
   onSalesDateChange: (v: string) => void;
   onLossDateChange: (v: string) => void;
@@ -21,14 +22,16 @@ export default function DateControlBar({
   salesDate,
   lossDate,
   weather,
+  holidayDates,
   onOrderDateChange,
   onSalesDateChange,
   onLossDateChange,
   onWeatherChange,
 }: DateControlProps) {
   const deliveryDate = getDeliveryDate(orderDate);
-  const deliveryDay = dayName(deliveryDate);
-  const dayCoef = master.dayCoefficients[deliveryDay] ?? 1;
+  const isHoliday = holidayDates?.has(deliveryDate);
+  const deliveryDay = isHoliday ? '祝' : dayName(deliveryDate);
+  const dayCoef = master.dayCoefficients[deliveryDay] ?? master.dayCoefficients[dayName(deliveryDate)] ?? 1;
   const weatherCoef = master.weatherCoefficients[weather] ?? 1;
   const effCoef = master.coefficientMap[deliveryDay]?.[weather] ?? dayCoef * weatherCoef;
 
@@ -41,7 +44,7 @@ export default function DateControlBar({
       <div className="date-bar-field date-bar-field--delivery">
         <span>納品日</span>
         <div className="date-bar-delivery">
-          {shortDate(deliveryDate)} <em>({deliveryDay})</em>
+          {shortDate(deliveryDate)} <em>({deliveryDay}{isHoliday ? '' : ''})</em>
         </div>
       </div>
       <label className="date-bar-field">

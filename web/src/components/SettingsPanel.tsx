@@ -77,6 +77,16 @@ export default function SettingsPanel({ master, onChanged, onToast }: Props) {
             </div>
           ))}
         </div>
+        <div className="mt-3 flex items-center gap-3">
+          <label className="text-[11px] font-semibold text-slate-500 shrink-0">祝祭日</label>
+          <input
+            type="number" step="0.01" min="0"
+            value={day['祝'] ?? 1.3}
+            onChange={(e) => setDay({ ...day, 祝: Number(e.target.value) || 0 })}
+            className="coef-input w-24"
+          />
+          <span className="text-[11px] text-slate-400">祝日取込・指数分析から自動設定可</span>
+        </div>
       </section>
 
       <section className="settings-card">

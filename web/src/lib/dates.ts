@@ -46,3 +46,54 @@ export function parseCsvDate(v: string): string {
   }
   return s;
 }
+
+export function parseIsoDate(dateStr: string): Date {
+  return new Date(dateStr + 'T00:00:00');
+}
+
+export function eachDayInRange(from: string, to: string): string[] {
+  const out: string[] = [];
+  const end = parseIsoDate(to);
+  for (let d = parseIsoDate(from); d <= end; d.setDate(d.getDate() + 1)) {
+    out.push(fmt(d));
+  }
+  return out;
+}
+
+export function addMonths(dateStr: string, months: number): string {
+  const d = parseIsoDate(dateStr);
+  d.setMonth(d.getMonth() + months);
+  return fmt(d);
+}
+
+export function getMonthStart(dateStr: string): string {
+  const d = parseIsoDate(dateStr);
+  d.setDate(1);
+  return fmt(d);
+}
+
+export function getMonthEnd(dateStr: string): string {
+  const d = parseIsoDate(dateStr);
+  d.setMonth(d.getMonth() + 1);
+  d.setDate(0);
+  return fmt(d);
+}
+
+export function shiftWeek(dateStr: string, weeks: number): string {
+  return addDays(dateStr, weeks * 7);
+}
+
+export function isWeekend(dateStr: string): boolean {
+  const dow = parseIsoDate(dateStr).getDay();
+  return dow === 0 || dow === 6;
+}
+
+export function monthLabel(dateStr: string): string {
+  const d = parseIsoDate(dateStr);
+  return `${d.getFullYear()}年${d.getMonth() + 1}月`;
+}
+
+export function weekLabel(from: string, to: string): string {
+  return `${shortDate(from)} 〜 ${shortDate(to)}`;
+}
+

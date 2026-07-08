@@ -11,8 +11,9 @@ import ProductHistoryPanel from '@/components/ProductHistoryPanel';
 import SalesPerformancePanel from '@/components/SalesPerformancePanel';
 import SettingsPanel from '@/components/SettingsPanel';
 import ShelfLayoutPanel from '@/components/ShelfLayoutPanel';
+import CalendarPanel from '@/components/CalendarPanel';
 
-type Screen = 'input' | 'result' | 'shelf' | 'history' | 'sales' | 'label' | 'settings';
+type Screen = 'input' | 'result' | 'shelf' | 'history' | 'sales' | 'calendar' | 'label' | 'settings';
 type StoreState = Record<string, Record<string, { sales: number; loss: number }>>;
 
 const NAV: { key: Screen; label: string; icon: string }[] = [
@@ -21,6 +22,7 @@ const NAV: { key: Screen; label: string; icon: string }[] = [
   { key: 'shelf', label: '棚割り', icon: '▦' },
   { key: 'history', label: '商品別売上', icon: '📈' },
   { key: 'sales', label: '販売実績', icon: '💴' },
+  { key: 'calendar', label: '指数・カレンダー', icon: '📅' },
   { key: 'label', label: 'ラベル', icon: '🏷' },
   { key: 'settings', label: '設定', icon: '⚙' },
 ];
@@ -45,6 +47,7 @@ export default function OrderApp() {
   const [historySearch, setHistorySearch] = useState('');
   const [sortKey, setSortKey] = useState<'default' | 'name' | 'display' | 'sales'>('default');
   const [inputSearch, setInputSearch] = useState('');
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
   const loadedKeyRef = useRef('');
 
   const jumpToProduct = (name: string) => {
@@ -146,6 +149,19 @@ export default function OrderApp() {
   }, [master, orderDate]);
 
   useEffect(() => {
+    const from = addDays(fmt(new Date()), -400);
+    const to = addDays(fmt(new Date()), 400);
+    fetch(`/api/holidays?from=${from}&to=${to}`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success && res.holidays) {
+          setHolidayDates(new Set(res.holidays.map((h: { holiday_date: string }) => h.holiday_date)));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!master || !salesDate || !lossDate) return;
     // 日付が実際に変わったときだけ自動読込。画面切替やマスタ再取得では入力値を保持する。
     const key = `${salesDate}|${lossDate}`;
@@ -163,10 +179,10 @@ export default function OrderApp() {
   const computeResults = useCallback(() => {
     if (!master) return null;
     const delivery = getDeliveryDate(orderDate);
-    const dn = dayName(delivery);
+    const dn: string = holidayDates.has(delivery) ? '祝' : dayName(delivery);
     const w = weather || master.weatherOptions[0] || '晴れ';
     return calcAllProducts(master, storeState, dn, w);
-  }, [master, orderDate, weather, storeState]);
+  }, [master, orderDate, weather, storeState, holidayDates]);
 
   const onCalculate = () => {
     const r = computeResults();
@@ -293,6 +309,7 @@ export default function OrderApp() {
     salesDate,
     lossDate,
     weather,
+    holidayDates,
     onOrderDateChange,
     onSalesDateChange: setSalesDate,
     onLossDateChange: setLossDate,
@@ -453,6 +470,10 @@ export default function OrderApp() {
             activeStore={activeStore}
             onStoreChange={(store) => setActiveStoreIdx(master.storeOrder.indexOf(store))}
           />
+        )}
+
+        {screen === 'calendar' && (
+          <CalendarPanel master={master} onChanged={loadMaster} onToast={showToast} />
         )}
 
         {screen === 'history' && (

@@ -10,6 +10,7 @@ export const DEFAULT_DAY_COEF: Record<string, number> = {
   金: 1.15,
   土: 1.3,
   日: 1.3,
+  祝: 1.3,
 };
 
 export const DEFAULT_WEATHER_COEF: Record<string, number> = {
