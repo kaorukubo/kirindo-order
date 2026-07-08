@@ -12,6 +12,7 @@ import SalesPerformancePanel from '@/components/SalesPerformancePanel';
 import SettingsPanel from '@/components/SettingsPanel';
 import ShelfLayoutPanel from '@/components/ShelfLayoutPanel';
 import CalendarPanel from '@/components/CalendarPanel';
+import LabelPanel from '@/components/LabelPanel';
 
 type Screen = 'input' | 'result' | 'shelf' | 'history' | 'sales' | 'calendar' | 'label' | 'settings';
 type StoreState = Record<string, Record<string, { sales: number; loss: number }>>;
@@ -258,26 +259,6 @@ export default function OrderApp() {
     window.location.href = '/login';
   };
 
-  const onGenerateLabels = async () => {
-    if (!master) return;
-    setBusy(true);
-    try {
-      const res = await fetch('/api/labels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ weekStart: master.weekStart }),
-      }).then((r) => r.json());
-      if (res.success) {
-        setMaster({ ...master, weeklyLabels: res.labels });
-        showToast(`✓ ${res.message}`);
-      } else {
-        showToast(res.message);
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
@@ -315,11 +296,6 @@ export default function OrderApp() {
     onLossDateChange: setLossDate,
     onWeatherChange: setWeather,
   };
-
-  const labelByProduct: Record<string, number> = {};
-  (master.weeklyLabels || []).forEach((l) => {
-    labelByProduct[l.productName] = (labelByProduct[l.productName] || 0) + l.count;
-  });
 
   return (
     <div className="app-shell">
@@ -598,28 +574,13 @@ export default function OrderApp() {
         )}
 
         {screen === 'label' && (
-          <div className="p-4 space-y-3 overflow-y-auto h-full max-w-2xl">
-            <div className="bg-white rounded-xl p-4 border border-slate-200">
-              <p className="font-bold">CSV取込</p>
-              <p className="text-xs text-gray-500 mt-1">売上元データの CSV をアップロード（Shift_JIS / 複数可）</p>
-              <input type="file" accept=".csv" multiple onChange={(e) => onImportCsv(e.target.files)} className="mt-2 w-full text-sm" />
-              {importProgress && <p className="text-xs text-blue-700 mt-1">{importProgress}</p>}
-            </div>
-            <div className="bg-white rounded-xl p-4 border border-slate-200">
-              <p className="font-bold">週次ラベル（直近1週間の販売合計）</p>
-              <p className="text-sm text-green-700 mt-1">対象週: {master.weekStart}</p>
-              <button onClick={onGenerateLabels} className="h-11 w-full mt-3 bg-amber-500 text-white rounded-xl font-bold">今週のラベルを発行</button>
-            </div>
-            <div className="space-y-1.5">
-              {Object.keys(labelByProduct).sort((a, b) => labelByProduct[b] - labelByProduct[a]).slice(0, 40).map((p) => (
-                <div key={p} className="bg-white rounded-lg px-4 py-2 flex justify-between border border-slate-100">
-                  <span>{p}</span>
-                  <span className="font-bold text-amber-600">{labelByProduct[p]}枚</span>
-                </div>
-              ))}
-              {!Object.keys(labelByProduct).length && <p className="text-center text-gray-500 py-6 text-sm">未発行</p>}
-            </div>
-          </div>
+          <LabelPanel
+            master={master}
+            onLabelsIssued={(labels) => setMaster({ ...master, weeklyLabels: labels })}
+            onToast={showToast}
+            onImportCsv={onImportCsv}
+            importProgress={importProgress}
+          />
         )}
 
         {screen === 'settings' && (

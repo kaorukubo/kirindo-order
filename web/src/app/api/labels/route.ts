@@ -1,6 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getWeekStart, addDays } from '@/lib/dates';
+import { useLocalDevMode } from '@/lib/env';
+
+function mapLabels(
+  labelRows: { store_id: string; product_id: string; label_count: number; period_from: string; period_to: string }[],
+  storeNameById: Record<string, string>,
+  productNameById: Record<string, string>,
+  periodFrom: string,
+  periodTo: string
+) {
+  return labelRows.map((r) => ({
+    storeName: storeNameById[r.store_id] || '',
+    productName: productNameById[r.product_id] || '',
+    count: r.label_count,
+    periodFrom: r.period_from || periodFrom,
+    periodTo: r.period_to || periodTo,
+  }));
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const weekStartStr = req.nextUrl.searchParams.get('weekStart') || getWeekStart();
+    if (useLocalDevMode()) {
+      return NextResponse.json({ success: true, weekStart: weekStartStr, labels: [], periodFrom: '', periodTo: '' });
+    }
+    const supabase = createAdminClient();
+    const { data: rows } = await supabase
+      .from('weekly_labels')
+      .select('store_id, product_id, label_count, period_from, period_to')
+      .eq('week_start', weekStartStr);
+
+    const { data: stores } = await supabase.from('stores').select('id, name');
+    const { data: products } = await supabase.from('products').select('id, name');
+    const storeNameById = Object.fromEntries((stores || []).map((s) => [s.id, s.name]));
+    const productNameById = Object.fromEntries((products || []).map((p) => [p.id, p.name]));
+
+    const periodFrom = rows?.[0]?.period_from || addDays(addDays(weekStartStr, -1), -6);
+    const periodTo = rows?.[0]?.period_to || addDays(weekStartStr, -1);
+
+    return NextResponse.json({
+      success: true,
+      weekStart: weekStartStr,
+      periodFrom,
+      periodTo,
+      labels: mapLabels(rows || [], storeNameById, productNameById, periodFrom, periodTo),
+    });
+  } catch (e) {
+    return NextResponse.json({ success: false, message: (e as Error).message }, { status: 500 });
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
