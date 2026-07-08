@@ -13,6 +13,8 @@ import SettingsPanel from '@/components/SettingsPanel';
 import ShelfLayoutPanel from '@/components/ShelfLayoutPanel';
 import CalendarPanel from '@/components/CalendarPanel';
 import LabelPanel from '@/components/LabelPanel';
+import BarcodeScannerModal from '@/components/BarcodeScannerModal';
+import { normalizeBarcode } from '@/lib/barcode';
 
 type Screen = 'input' | 'result' | 'shelf' | 'history' | 'sales' | 'calendar' | 'label' | 'settings';
 type StoreState = Record<string, Record<string, { sales: number; loss: number }>>;
@@ -49,6 +51,8 @@ export default function OrderApp() {
   const [sortKey, setSortKey] = useState<'default' | 'name' | 'display' | 'sales'>('default');
   const [inputSearch, setInputSearch] = useState('');
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [barcodeMap, setBarcodeMap] = useState<Record<string, string>>({});
   const loadedKeyRef = useRef('');
 
   const jumpToProduct = (name: string) => {
@@ -69,6 +73,53 @@ export default function OrderApp() {
     if (hit) jumpToProduct(hit.name);
     else showToast('該当商品なし');
   };
+
+  const loadBarcodeMap = useCallback(async () => {
+    const res = await fetch('/api/barcode-map').then((r) => r.json());
+    const map: Record<string, string> = res.success ? { ...res.map } : {};
+    try {
+      const local = JSON.parse(localStorage.getItem('kirindo-label-info-v1') || '{}') as Record<
+        string,
+        { barcode?: string }
+      >;
+      for (const [name, info] of Object.entries(local)) {
+        const code = normalizeBarcode(info.barcode || '');
+        if (code) map[code] = name;
+      }
+    } catch {
+      /* ignore */
+    }
+    setBarcodeMap(map);
+    return map;
+  }, []);
+
+  const openLossScanner = async () => {
+    if (!lossDate) {
+      showToast('ロス確認日を設定してください');
+      return;
+    }
+    await loadBarcodeMap();
+    setScannerOpen(true);
+  };
+
+  const onOptimisticLossScan = useCallback(
+    (productName: string) => {
+      const store = master?.storeOrder[activeStoreIdx];
+      if (!store) return;
+      setStoreState((prev) => {
+        const st = prev[store]?.[productName] || { sales: 0, loss: 0 };
+        return {
+          ...prev,
+          [store]: {
+            ...prev[store],
+            [productName]: { ...st, loss: st.loss + 1 },
+          },
+        };
+      });
+      setSelectedProduct(productName);
+    },
+    [master, activeStoreIdx]
+  );
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -343,6 +394,13 @@ export default function OrderApp() {
               <button type="button" onClick={onCalculate} className="btn-calculate-sm shrink-0">
                 発注を計算
               </button>
+              <button
+                type="button"
+                onClick={openLossScanner}
+                className="text-xs font-semibold text-orange-700 bg-orange-50 hover:bg-orange-100 px-3 py-2 rounded-lg shrink-0 transition-colors"
+              >
+                📷 ロススキャン
+              </button>
             </div>
 
             <div className="input-toolbar">
@@ -592,6 +650,17 @@ export default function OrderApp() {
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 toast-modern text-white text-center py-3 px-6 z-50 text-sm font-medium">{toast}</div>
+      )}
+      {master && (
+        <BarcodeScannerModal
+          open={scannerOpen}
+          onClose={() => setScannerOpen(false)}
+          storeName={activeStore}
+          storeShortName={master.storeShortNames[activeStore] || activeStore}
+          lossDate={lossDate}
+          barcodeToProduct={barcodeMap}
+          onOptimisticLoss={onOptimisticLossScan}
+        />
       )}
       {busy && (
         <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center">
