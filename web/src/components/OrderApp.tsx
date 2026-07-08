@@ -12,11 +12,10 @@ import SalesPerformancePanel from '@/components/SalesPerformancePanel';
 import SettingsPanel from '@/components/SettingsPanel';
 import ShelfLayoutPanel from '@/components/ShelfLayoutPanel';
 
-type Screen = 'order' | 'input' | 'result' | 'shelf' | 'history' | 'sales' | 'label' | 'settings';
+type Screen = 'input' | 'result' | 'shelf' | 'history' | 'sales' | 'label' | 'settings';
 type StoreState = Record<string, Record<string, { sales: number; loss: number }>>;
 
 const NAV: { key: Screen; label: string; icon: string }[] = [
-  { key: 'order', label: '発注日', icon: '📅' },
   { key: 'input', label: '入力', icon: '✎' },
   { key: 'result', label: '確認', icon: '☑' },
   { key: 'shelf', label: '棚割り', icon: '▦' },
@@ -30,12 +29,11 @@ export default function OrderApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [master, setMaster] = useState<MasterData | null>(null);
-  const [screen, setScreen] = useState<Screen>('order');
+  const [screen, setScreen] = useState<Screen>('input');
   const [orderDate, setOrderDate] = useState(fmt(new Date()));
   const [salesDate, setSalesDate] = useState('');
   const [lossDate, setLossDate] = useState('');
   const [weather, setWeather] = useState('');
-  const [weatherLine, setWeatherLine] = useState('');
   const [storeState, setStoreState] = useState<StoreState>({});
   const [activeStoreIdx, setActiveStoreIdx] = useState(0);
   const [results, setResults] = useState<CalcItem[] | null>(null);
@@ -137,15 +135,11 @@ export default function OrderApp() {
 
   useEffect(() => {
     if (!master || !orderDate) return;
-    const dd = getDeliveryDate(orderDate);
     fetch(`/api/weather?orderDate=${orderDate}`)
       .then((r) => r.json())
       .then((res) => {
         if (res.success && res.weather) {
           setWeather(res.weather);
-          setWeatherLine(`神戸市 納品日${shortDate(dd)}(${dayName(dd)})の予報：${res.weather}`);
-        } else {
-          setWeatherLine(res.message || '天候を手動選択');
         }
       })
       .catch(() => {});
@@ -299,7 +293,6 @@ export default function OrderApp() {
     salesDate,
     lossDate,
     weather,
-    weatherLine,
     onOrderDateChange,
     onSalesDateChange: setSalesDate,
     onLossDateChange: setLossDate,
@@ -314,17 +307,13 @@ export default function OrderApp() {
   return (
     <div className="app-shell">
       {/* ─── LEFT PANE ─── */}
-      <aside className="pane-left">
-        <div className="px-4 pt-4 pb-3">
-          <p className="text-white/45 text-[9px] font-semibold tracking-[0.2em] uppercase">Kirindo Produce</p>
-          <h1 className="text-white text-base font-bold tracking-tight">青果 発注・振分</h1>
+      <aside className="pane-left pane-left--menu">
+        <div className="px-3 pt-4 pb-2">
+          <p className="text-white/45 text-[9px] font-semibold tracking-[0.2em] uppercase">Kirindo</p>
+          <h1 className="text-white text-sm font-bold tracking-tight">青果 発注・振分</h1>
         </div>
 
-        <div className="px-3 mt-2">
-          <DateControlBar {...dateBarProps} variant="sidebar" />
-        </div>
-
-        <nav className="px-2 mt-3 space-y-0.5">
+        <nav className="px-2 flex-1 space-y-0.5">
           {NAV.map((n) => (
             <button key={n.key} onClick={() => goToScreen(n.key)} className={`nav-item ${screen === n.key ? 'active' : ''}`}>
               <span className="nav-icon">{n.icon}</span>
@@ -333,29 +322,16 @@ export default function OrderApp() {
           ))}
         </nav>
 
-        <div className="px-3 mt-3 space-y-2">
-          <button onClick={onCalculate} className="btn-calculate w-full">発注を計算</button>
-          {weatherLine && <p className="text-[11px] text-white/40 text-center">{weatherLine}</p>}
+        <div className="px-2 pb-3 mt-auto">
           <button onClick={onLogout} className="logout-btn">ログアウト</button>
         </div>
       </aside>
 
       {/* ─── CONTENT ─── */}
       <main className="pane-content">
-        {screen === 'order' && (
-          <div className="p-4 space-y-4 overflow-y-auto h-full max-w-xl">
-            <div className="settings-card">
-              <h2 className="settings-title text-lg">発注日・納品日</h2>
-              <p className="settings-hint">左メニューまたは入力画面で変更すると連動します</p>
-              <DateControlBar {...dateBarProps} variant="input" />
-            </div>
-            <button onClick={onCalculate} className="btn-calculate w-full">発注を計算 → 確認へ</button>
-          </div>
-        )}
-
         {screen === 'input' && (
           <div className="flex flex-col h-full">
-            <DateControlBar {...dateBarProps} variant="input" />
+            <DateControlBar {...dateBarProps} />
             <div className="pane-header">
               <div className="segment-control">
                 {master.storeOrder.map((store, i) => (
@@ -370,6 +346,9 @@ export default function OrderApp() {
                 className="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg shrink-0 transition-colors"
               >
                 実績読込
+              </button>
+              <button type="button" onClick={onCalculate} className="btn-calculate-sm shrink-0">
+                発注を計算
               </button>
             </div>
 
