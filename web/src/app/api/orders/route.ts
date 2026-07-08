@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createAdminClient, useLocalDevMode } from '@/lib/supabase/admin';
 import type { SaveOrderPayload } from '@/types';
 
 export async function POST(req: NextRequest) {
@@ -9,13 +9,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: '保存データが不正です' }, { status: 400 });
     }
 
+    const toSave = payload.items.filter((it) => it.totalUnits > 0);
+
+    if (useLocalDevMode()) {
+      return NextResponse.json({
+        success: true,
+        message: `ローカル開発: ${toSave.length}件（Supabase 未保存）`,
+        savedCount: toSave.length,
+        localDev: true,
+      });
+    }
+
     const supabase = createAdminClient();
     const { data: stores } = await supabase.from('stores').select('id, name').order('sort_order');
     const { data: products } = await supabase.from('products').select('id, name');
-    const storeIds = (stores || []).map((s) => s.id);
     const productByName = Object.fromEntries((products || []).map((p) => [p.name, p.id]));
 
-    const toSave = payload.items.filter((it) => it.totalUnits > 0);
     const orderRows = toSave.map((item) => ({
       delivery_date: payload.targetDate,
       order_date: payload.orderDate,

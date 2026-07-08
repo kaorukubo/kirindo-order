@@ -1,9 +1,18 @@
 import realMaster from '@/data/real-master.json';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createAdminClient, useLocalDevMode } from '@/lib/supabase/admin';
 import { addDays, getWeekStart } from '@/lib/dates';
 import { buildCoefficientMap, getCoefficients } from '@/lib/coefficients';
+import { fetchMasterFromLocalJson } from '@/lib/local-master';
 
 export async function seedMasterData() {
+  if (useLocalDevMode()) {
+    return {
+      success: true,
+      message: 'ローカル開発モード: real-master.json を使用中（Supabase 不要）',
+      skipped: true,
+      localDev: true,
+    };
+  }
   const supabase = createAdminClient();
 
   const { count: storeCount } = await supabase.from('stores').select('*', { count: 'exact', head: true });
@@ -82,6 +91,9 @@ export async function buildSalesRatio(days = 7): Promise<Record<string, Record<s
 }
 
 export async function fetchMasterData() {
+  if (useLocalDevMode()) {
+    return fetchMasterFromLocalJson();
+  }
   const supabase = createAdminClient();
 
   const { data: stores } = await supabase.from('stores').select('*').order('sort_order');

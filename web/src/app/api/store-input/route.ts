@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createAdminClient, useLocalDevMode } from '@/lib/supabase/admin';
+import { emptyStoreInput, fetchMasterFromLocalJson } from '@/lib/local-master';
 
 export async function GET(req: NextRequest) {
   try {
@@ -7,6 +8,13 @@ export async function GET(req: NextRequest) {
     const lossDate = req.nextUrl.searchParams.get('lossDate');
     if (!salesDate || !lossDate) {
       return NextResponse.json({ success: false, message: 'salesDate と lossDate が必要です' }, { status: 400 });
+    }
+
+    if (useLocalDevMode()) {
+      const m = fetchMasterFromLocalJson();
+      const names = m.products.map((p) => String(p.name));
+      const { sales, losses } = emptyStoreInput(m.storeOrder, names);
+      return NextResponse.json({ success: true, salesDate, lossDate, sales, losses, localDev: true });
     }
 
     const supabase = createAdminClient();

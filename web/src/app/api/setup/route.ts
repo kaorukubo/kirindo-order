@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { NextResponse } from 'next/server';
+import { useLocalDevMode } from '@/lib/supabase/admin';
 import { seedMasterData } from '@/lib/master-data';
 
 export async function POST() {
@@ -13,6 +13,10 @@ export async function POST() {
 
 export async function GET() {
   try {
+    if (useLocalDevMode()) {
+      return NextResponse.json({ initialized: true, storeCount: 4, localDev: true });
+    }
+    const { createAdminClient } = await import('@/lib/supabase/admin');
     const supabase = createAdminClient();
     const { count } = await supabase.from('stores').select('*', { count: 'exact', head: true });
     return NextResponse.json({ initialized: (count || 0) > 0, storeCount: count || 0 });

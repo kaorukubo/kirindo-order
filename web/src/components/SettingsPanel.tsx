@@ -188,9 +188,9 @@ export default function SettingsPanel({ master, onChanged, onToast }: Props) {
         </div>
       </section>
 
-      {/* 店舗×商品 陳列数 */}
+      {/* 店舗×商品 適正陳列数 */}
       <section className="settings-card">
-        <h3 className="settings-title">陳列数（店舗別）</h3>
+        <h3 className="settings-title">適正陳列数（店舗別）</h3>
         <select value={spStore} onChange={(e) => setSpStore(e.target.value)} className="settings-text-input w-full mt-2">
           {master.storeOrder.map((s) => (
             <option key={s} value={s}>{s}</option>
@@ -209,7 +209,7 @@ export default function SettingsPanel({ master, onChanged, onToast }: Props) {
             ))}
           </select>
           <input
-            type="number" min="0" title="陳列数"
+            type="number" min="0" title="適正陳列数"
             value={addProdDisplay}
             onChange={(e) => setAddProdDisplay(Number(e.target.value) || 0)}
             className="settings-text-input w-20"

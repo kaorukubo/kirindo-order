@@ -5,17 +5,23 @@ import type { CalcItem, MasterData } from '@/types';
 import { addDays, dayName, fmt, getDeliveryDate, shortDate } from '@/lib/dates';
 import { calcAllProducts } from '@/lib/calculation';
 import { downloadOrderExcel } from '@/lib/excel-export';
+import DateControlBar from '@/components/DateControlBar';
 import NumberStepper from '@/components/NumberStepper';
 import ProductHistoryPanel from '@/components/ProductHistoryPanel';
+import SalesPerformancePanel from '@/components/SalesPerformancePanel';
 import SettingsPanel from '@/components/SettingsPanel';
+import ShelfLayoutPanel from '@/components/ShelfLayoutPanel';
 
-type Screen = 'input' | 'result' | 'history' | 'label' | 'settings';
+type Screen = 'order' | 'input' | 'result' | 'shelf' | 'history' | 'sales' | 'label' | 'settings';
 type StoreState = Record<string, Record<string, { sales: number; loss: number }>>;
 
 const NAV: { key: Screen; label: string; icon: string }[] = [
+  { key: 'order', label: '発注日', icon: '📅' },
   { key: 'input', label: '入力', icon: '✎' },
   { key: 'result', label: '確認', icon: '☑' },
-  { key: 'history', label: '商品別売上実績', icon: '📈' },
+  { key: 'shelf', label: '棚割り', icon: '▦' },
+  { key: 'history', label: '商品別売上', icon: '📈' },
+  { key: 'sales', label: '販売実績', icon: '💴' },
   { key: 'label', label: 'ラベル', icon: '🏷' },
   { key: 'settings', label: '設定', icon: '⚙' },
 ];
@@ -24,7 +30,7 @@ export default function OrderApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [master, setMaster] = useState<MasterData | null>(null);
-  const [screen, setScreen] = useState<Screen>('input');
+  const [screen, setScreen] = useState<Screen>('order');
   const [orderDate, setOrderDate] = useState(fmt(new Date()));
   const [salesDate, setSalesDate] = useState('');
   const [lossDate, setLossDate] = useState('');
@@ -285,10 +291,20 @@ export default function OrderApp() {
   const deliveryDate = getDeliveryDate(orderDate);
   const deliveryDay = dayName(deliveryDate);
   const activeStore = master.storeOrder[activeStoreIdx];
-  const dayCoef = master.dayCoefficients[deliveryDay] ?? 1;
-  const weatherCoef = master.weatherCoefficients[weather] ?? 1;
-  const effCoef = master.coefficientMap[deliveryDay]?.[weather] ?? dayCoef * weatherCoef;
   const matrixItems = (results || []).filter((it) => showAllProducts || it.totalUnits > 0);
+
+  const dateBarProps = {
+    master,
+    orderDate,
+    salesDate,
+    lossDate,
+    weather,
+    weatherLine,
+    onOrderDateChange,
+    onSalesDateChange: setSalesDate,
+    onLossDateChange: setLossDate,
+    onWeatherChange: setWeather,
+  };
 
   const labelByProduct: Record<string, number> = {};
   (master.weeklyLabels || []).forEach((l) => {
@@ -304,7 +320,11 @@ export default function OrderApp() {
           <h1 className="text-white text-base font-bold tracking-tight">青果 発注・振分</h1>
         </div>
 
-        <nav className="px-2 space-y-1">
+        <div className="px-3 mt-2">
+          <DateControlBar {...dateBarProps} variant="sidebar" />
+        </div>
+
+        <nav className="px-2 mt-3 space-y-0.5">
           {NAV.map((n) => (
             <button key={n.key} onClick={() => goToScreen(n.key)} className={`nav-item ${screen === n.key ? 'active' : ''}`}>
               <span className="nav-icon">{n.icon}</span>
@@ -313,43 +333,7 @@ export default function OrderApp() {
           ))}
         </nav>
 
-        <div className="px-3 mt-4 space-y-3">
-          <div className="side-field">
-            <label>発注日</label>
-            <input type="date" value={orderDate} onChange={(e) => onOrderDateChange(e.target.value)} />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="side-stat">
-              <label>納品日</label>
-              <p className="side-stat-value">{shortDate(deliveryDate)} <span className="text-white/50 text-xs">({deliveryDay})</span></p>
-            </div>
-            <div className="side-field">
-              <label>天候</label>
-              <select value={weather} onChange={(e) => setWeather(e.target.value)}>
-                {master.weatherOptions.map((w) => (
-                  <option key={w} value={w}>{w}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="coef-readout">
-            <span>曜日 <b>×{dayCoef}</b></span>
-            <span>天候 <b>×{weatherCoef}</b></span>
-            <span className="coef-eff">実効 <b>×{effCoef.toFixed(2)}</b></span>
-          </div>
-
-          <div className="space-y-2">
-            <div className="side-field side-field--sales">
-              <label>販売実績日</label>
-              <input type="date" value={salesDate} onChange={(e) => setSalesDate(e.target.value)} />
-            </div>
-            <div className="side-field side-field--loss">
-              <label>ロス確認日</label>
-              <input type="date" value={lossDate} onChange={(e) => setLossDate(e.target.value)} />
-            </div>
-          </div>
-
+        <div className="px-3 mt-3 space-y-2">
           <button onClick={onCalculate} className="btn-calculate w-full">発注を計算</button>
           {weatherLine && <p className="text-[11px] text-white/40 text-center">{weatherLine}</p>}
           <button onClick={onLogout} className="logout-btn">ログアウト</button>
@@ -358,8 +342,20 @@ export default function OrderApp() {
 
       {/* ─── CONTENT ─── */}
       <main className="pane-content">
+        {screen === 'order' && (
+          <div className="p-4 space-y-4 overflow-y-auto h-full max-w-xl">
+            <div className="settings-card">
+              <h2 className="settings-title text-lg">発注日・納品日</h2>
+              <p className="settings-hint">左メニューまたは入力画面で変更すると連動します</p>
+              <DateControlBar {...dateBarProps} variant="input" />
+            </div>
+            <button onClick={onCalculate} className="btn-calculate w-full">発注を計算 → 確認へ</button>
+          </div>
+        )}
+
         {screen === 'input' && (
           <div className="flex flex-col h-full">
+            <DateControlBar {...dateBarProps} variant="input" />
             <div className="pane-header">
               <div className="segment-control">
                 {master.storeOrder.map((store, i) => (
@@ -398,7 +394,7 @@ export default function OrderApp() {
                 <select value={sortKey} onChange={(e) => setSortKey(e.target.value as typeof sortKey)}>
                   <option value="default">標準</option>
                   <option value="name">商品名順</option>
-                  <option value="display">陳列多い順</option>
+                  <option value="display">適正陳列多い順</option>
                   <option value="sales">販売数多い順</option>
                 </select>
               </div>
@@ -439,8 +435,8 @@ export default function OrderApp() {
                                 <button type="button" onClick={() => selectProduct(p.name)} className="prow-title-btn" title="売上実績を見る">
                                   {p.name}
                                 </button>
-                                <button type="button" onClick={() => setScreen('settings')} className="prow-badge" title="陳列数を設定">
-                                  陳列 {p.baseDisplay}
+                                <button type="button" onClick={() => setScreen('settings')} className="prow-badge" title="適正陳列数を設定">
+                                  適正 {p.baseDisplay}
                                 </button>
                               </div>
                               <NumberStepper
@@ -461,6 +457,23 @@ export default function OrderApp() {
               );
             })()}
           </div>
+        )}
+
+        {screen === 'shelf' && (
+          <ShelfLayoutPanel
+            master={master}
+            activeStore={activeStore}
+            onStoreChange={(store) => setActiveStoreIdx(master.storeOrder.indexOf(store))}
+          />
+        )}
+
+        {screen === 'sales' && (
+          <SalesPerformancePanel
+            master={master}
+            storeState={storeState}
+            activeStore={activeStore}
+            onStoreChange={(store) => setActiveStoreIdx(master.storeOrder.indexOf(store))}
+          />
         )}
 
         {screen === 'history' && (

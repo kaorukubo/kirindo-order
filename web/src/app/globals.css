@@ -51,7 +51,7 @@ select {
     flex-direction: row;
   }
   .pane-left {
-    width: 13.5rem;
+    width: 15rem;
     height: 100dvh;
   }
 }
@@ -724,4 +724,251 @@ select {
   backdrop-filter: blur(8px);
   border-radius: 1rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+/* ─── Large sidebar dates ─── */
+.date-sidebar-today {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+.date-sidebar-field span {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 0.2rem;
+}
+.date-sidebar-field {
+  margin-bottom: 0.65rem;
+}
+.date-sidebar-input-lg {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.96);
+  border: none;
+  border-radius: 0.6rem;
+  padding: 0.55rem 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+.date-sidebar-delivery-lg {
+  color: #fff;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.2;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0.6rem;
+  padding: 0.45rem 0.5rem;
+}
+.date-sidebar-delivery-lg small {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+  margin-left: 0.25rem;
+}
+.date-bar--sidebar .side-field span {
+  text-transform: uppercase;
+}
+
+/* ─── Input date bar (above quantities) ─── */
+.date-bar--input {
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.5rem 0.75rem;
+  flex-shrink: 0;
+}
+.date-bar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem;
+}
+.date-bar-row--sub {
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed #e2e8f0;
+}
+.date-bar-today {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+  padding-bottom: 0.35rem;
+}
+.date-bar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.date-bar-field span {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.04em;
+}
+.date-bar-field input,
+.date-bar-field select {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.45rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  min-width: 9rem;
+}
+.date-bar-field--delivery .date-bar-delivery {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--forest);
+  padding: 0.3rem 0.5rem;
+  background: #ecfdf5;
+  border-radius: 0.5rem;
+}
+.date-bar-field--delivery em {
+  font-style: normal;
+  font-size: 0.8rem;
+  color: #059669;
+}
+.date-bar-field--sales input:focus {
+  outline: 2px solid #34d399;
+}
+.date-bar-field--loss input:focus {
+  outline: 2px solid #fb923c;
+}
+.coef-readout--light {
+  background: #f1f5f9;
+  color: #64748b;
+  flex: 1;
+  min-width: 12rem;
+}
+.coef-readout--light b {
+  color: #0f172a;
+}
+.coef-readout--light .coef-eff b {
+  color: #059669;
+}
+.date-bar-weather-line {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  flex: 1;
+  min-width: 10rem;
+}
+
+/* ─── Sales performance ─── */
+.sales-perf-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: #fff;
+}
+.sales-perf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+.sales-perf-table th,
+.sales-perf-table td {
+  border-bottom: 1px solid #f1f5f9;
+  padding: 0.4rem 0.5rem;
+  white-space: nowrap;
+}
+.sales-perf-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 1;
+  font-weight: 700;
+  color: #475569;
+}
+.sales-perf-name {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.metric-input {
+  width: 4.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.35rem;
+  padding: 0.2rem 0.3rem;
+  text-align: right;
+  font-size: 0.78rem;
+}
+.metric-input--sm {
+  width: 3.5rem;
+}
+
+/* ─── Shelf layout 4×12 ─── */
+.shelf-grid-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.75rem;
+  background: #f1f5f9;
+}
+.shelf-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(5.5rem, 1fr));
+  gap: 0.4rem;
+  min-width: max-content;
+}
+.shelf-cell {
+  background: #fff;
+  border: 2px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.35rem;
+  min-height: 7.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  cursor: pointer;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+.shelf-cell--filled {
+  border-color: #a7f3d0;
+}
+.shelf-cell--selected {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35);
+}
+.shelf-cell-pos {
+  font-size: 0.55rem;
+  color: #94a3b8;
+  font-weight: 700;
+}
+.shelf-cell-product {
+  font-size: 0.62rem;
+  font-weight: 600;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.3rem;
+  padding: 0.15rem;
+  background: rgba(255, 255, 255, 0.92);
+}
+.shelf-cell-qty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.2rem;
+  font-size: 0.58rem;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.92);
+}
+.shelf-cell-qty input {
+  width: 2.2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.25rem;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+.shelf-cell-photo {
+  font-size: 0.55rem;
+  border: none;
+  border-bottom: 1px dashed #cbd5e1;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 0.1rem;
 }

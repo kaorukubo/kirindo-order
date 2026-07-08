@@ -1,6 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
+import { isSupabaseConfigured, useLocalDevMode } from '@/lib/env';
+
+export { isSupabaseConfigured, useLocalDevMode };
 
 export function createAdminClient() {
+  if (useLocalDevMode()) {
+    throw new Error('ローカル開発モード（Supabase 未接続）');
+  }
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
