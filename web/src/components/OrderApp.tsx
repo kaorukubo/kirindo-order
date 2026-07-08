@@ -14,9 +14,12 @@ import ShelfLayoutPanel from '@/components/ShelfLayoutPanel';
 import CalendarPanel from '@/components/CalendarPanel';
 import LabelPanel from '@/components/LabelPanel';
 import BarcodeScannerModal from '@/components/BarcodeScannerModal';
+import TestModeBar from '@/components/TestModeBar';
+import OrderLogPanel from '@/components/OrderLogPanel';
 import { normalizeBarcode } from '@/lib/barcode';
+import { injectTestLossData, type OrderSnapshot } from '@/lib/order-snapshot';
 
-type Screen = 'input' | 'result' | 'shelf' | 'history' | 'sales' | 'calendar' | 'label' | 'settings';
+type Screen = 'input' | 'result' | 'shelf' | 'history' | 'sales' | 'calendar' | 'label' | 'logs' | 'settings';
 type StoreState = Record<string, Record<string, { sales: number; loss: number }>>;
 
 const NAV: { key: Screen; label: string; icon: string }[] = [
@@ -27,6 +30,7 @@ const NAV: { key: Screen; label: string; icon: string }[] = [
   { key: 'sales', label: '販売実績', icon: '💴' },
   { key: 'calendar', label: '指数・カレンダー', icon: '📅' },
   { key: 'label', label: 'ラベル', icon: '🏷' },
+  { key: 'logs', label: '操作ログ', icon: '📋' },
   { key: 'settings', label: '設定', icon: '⚙' },
 ];
 
@@ -53,7 +57,25 @@ export default function OrderApp() {
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
   const [scannerOpen, setScannerOpen] = useState(false);
   const [barcodeMap, setBarcodeMap] = useState<Record<string, string>>({});
+  const [testMode, setTestMode] = useState(false);
   const loadedKeyRef = useRef('');
+
+  useEffect(() => {
+    try {
+      setTestMode(sessionStorage.getItem('kirindo-test-mode') === '1');
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const setTestModePersist = (v: boolean) => {
+    setTestMode(v);
+    try {
+      sessionStorage.setItem('kirindo-test-mode', v ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  };
 
   const jumpToProduct = (name: string) => {
     const el = document.getElementById(`si-${name}`) as HTMLInputElement | null;
@@ -267,15 +289,39 @@ export default function OrderApp() {
         body: JSON.stringify({
           targetDate: getDeliveryDate(orderDate),
           orderDate,
+          salesDate,
+          lossDate,
           weather,
           storeOrder: master.storeOrder,
+          storeState,
+          results,
           items: results.filter((it) => it.totalUnits > 0),
+          testMode,
         }),
       }).then((r) => r.json());
       showToast(res.success ? `✓ ${res.message}` : res.message);
     } finally {
       setBusy(false);
     }
+  };
+
+  const injectTestData = () => {
+    if (!master) return;
+    setStoreState(injectTestLossData(storeState, master.storeOrder, master.storeProducts));
+    loadedKeyRef.current = `${salesDate}|${lossDate}`;
+    showToast('✓ 全店舗・全商品のロス数にテスト値（0〜5）を注入しました');
+    setScreen('input');
+  };
+
+  const restoreFromSnapshot = (snapshot: OrderSnapshot) => {
+    setOrderDate(snapshot.orderDate);
+    setSalesDate(snapshot.salesDate);
+    setLossDate(snapshot.lossDate);
+    setWeather(snapshot.weather);
+    setStoreState(snapshot.storeState);
+    setResults(snapshot.results);
+    loadedKeyRef.current = `${snapshot.salesDate}|${snapshot.lossDate}`;
+    setScreen('input');
   };
 
   const onExport = () => {
@@ -373,6 +419,11 @@ export default function OrderApp() {
 
       {/* ─── CONTENT ─── */}
       <main className="pane-content">
+        <TestModeBar
+          testMode={testMode}
+          onTestModeChange={setTestModePersist}
+          onInjectTestData={injectTestData}
+        />
         {screen === 'input' && (
           <div className="flex flex-col h-full">
             <DateControlBar {...dateBarProps} />
@@ -626,7 +677,9 @@ export default function OrderApp() {
             <div className="flex gap-2 p-2 border-t border-slate-100 bg-white">
               <button onClick={() => setScreen('input')} className="h-10 px-4 bg-slate-200 text-slate-700 rounded-lg font-bold text-sm">入力へ戻る</button>
               <button onClick={onExport} className="flex-1 h-10 bg-emerald-600 text-white rounded-lg font-bold shadow text-sm">Excel書き出し</button>
-              <button onClick={onSave} className="flex-1 h-10 bg-blue-600 text-white rounded-lg font-bold shadow text-sm">確定保存</button>
+              <button onClick={onSave} className={`flex-1 h-10 rounded-lg font-bold shadow text-sm ${testMode ? 'bg-amber-500 text-white' : 'bg-blue-600 text-white'}`}>
+                {testMode ? 'テスト確定' : '確定保存'}
+              </button>
             </div>
           </div>
         )}
@@ -645,6 +698,10 @@ export default function OrderApp() {
           <div className="p-4 overflow-y-auto h-full max-w-2xl">
             <SettingsPanel master={master} onChanged={loadMaster} onToast={showToast} />
           </div>
+        )}
+
+        {screen === 'logs' && (
+          <OrderLogPanel onRestore={restoreFromSnapshot} onToast={showToast} />
         )}
       </main>
 
