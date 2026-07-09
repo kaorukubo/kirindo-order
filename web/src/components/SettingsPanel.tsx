@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { MasterData } from '@/types';
 import { DAY_ORDER } from '@/lib/coefficients';
+import HatakoOrderSettings from '@/components/HatakoOrderSettings';
 
 interface Props {
   master: MasterData;
@@ -60,6 +61,13 @@ export default function SettingsPanel({ master, onChanged, onToast }: Props) {
 
   return (
     <div className="space-y-4 pb-10">
+      <HatakoOrderSettings
+        master={master}
+        onChanged={onChanged}
+        onToast={onToast}
+        localDev={(master as MasterData & { localDev?: boolean }).localDev}
+      />
+
       {/* 係数 */}
       <section className="settings-card">
         <h3 className="settings-title">曜日係数</h3>

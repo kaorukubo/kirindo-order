@@ -2,6 +2,7 @@ import realMaster from '@/data/real-master.json';
 import { createAdminClient, useLocalDevMode } from '@/lib/supabase/admin';
 import { addDays, getWeekStart } from '@/lib/dates';
 import { buildCoefficientMap, getCoefficients } from '@/lib/coefficients';
+import { mergeHatakoFlags } from '@/lib/hatako-order';
 import { fetchMasterFromLocalJson } from '@/lib/local-master';
 
 export async function seedMasterData() {
@@ -141,13 +142,27 @@ export async function fetchMasterData() {
     count: l.label_count,
   }));
 
+  const dbHatakoFlags = Object.fromEntries(
+    (products || []).map((p) => [
+      p.name,
+      (p as { hatako_order_sheet?: boolean }).hatako_order_sheet !== false,
+    ])
+  );
+  const productNames = (products || []).map((p) => p.name);
+  const hatakoOrderSheet = mergeHatakoFlags(productNames, dbHatakoFlags);
+
   return {
     success: true,
-    products: (products || []).map((p) => ({ name: p.name, orderUnit: p.order_unit })),
+    products: (products || []).map((p) => ({
+      name: p.name,
+      orderUnit: p.order_unit,
+      hatakoOrderSheet: hatakoOrderSheet[p.name] !== false,
+    })),
     storeOrder,
     storeShortNames,
     storeProducts: storeProductsMap,
     storeProductMap,
+    hatakoOrderSheet,
     coefficientMap,
     weatherOptions,
     weatherCoefficients: coef.weather,

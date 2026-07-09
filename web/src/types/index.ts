@@ -24,7 +24,7 @@ export interface StoreProduct {
 }
 
 export interface MasterData {
-  products: { name: string; orderUnit: number }[];
+  products: { name: string; orderUnit: number; hatakoOrderSheet: boolean }[];
   storeOrder: string[];
   storeShortNames: Record<string, string>;
   storeProducts: Record<string, StoreProduct[]>;
@@ -33,6 +33,8 @@ export interface MasterData {
   weatherOptions: string[];
   weatherCoefficients: Record<string, number>;
   dayCoefficients: Record<string, number>;
+  /** 商品名 → 畑光発注書Excelの発注一覧に載せるか */
+  hatakoOrderSheet: Record<string, boolean>;
   salesRatio: Record<string, Record<string, number>>;
   weekStart: string;
   weeklyLabels: { storeName: string; productName: string; count: number }[];

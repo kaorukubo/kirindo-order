@@ -326,8 +326,19 @@ export default function OrderApp() {
 
   const onExport = () => {
     if (!master || !results) return;
-    downloadOrderExcel(results, master.storeOrder, master.storeShortNames, orderDate, getDeliveryDate(orderDate), weather);
-    showToast('✓ Excelをダウンロードしました');
+    downloadOrderExcel(
+      results,
+      master.storeOrder,
+      master.storeShortNames,
+      orderDate,
+      getDeliveryDate(orderDate),
+      weather,
+      { hatakoOrderSheet: master.hatakoOrderSheet }
+    );
+    const hatakoCount = results.filter(
+      (it) => it.totalUnits > 0 && master.hatakoOrderSheet[it.productName] !== false
+    ).length;
+    showToast(`✓ 畑光発注書 Excel（発注一覧 ${hatakoCount}品）`);
   };
 
   const onImportCsv = async (files: FileList | null) => {
@@ -646,7 +657,12 @@ export default function OrderApp() {
                               <tr key={item.productName}>
                                 <td className="sticky-col pl-3">
                                   <button onClick={() => selectProduct(item.productName)} className="text-left w-full">
-                                    <span className="font-medium text-xs truncate block">{item.productName}</span>
+                                    <span className="font-medium text-xs truncate block">
+                                      {item.productName}
+                                      {master.hatakoOrderSheet[item.productName] === false && (
+                                        <em className="ml-1 text-[9px] text-slate-400 not-italic">対象外</em>
+                                      )}
+                                    </span>
                                     <span className="text-[10px] text-gray-400">{item.cases}cs</span>
                                   </button>
                                 </td>
@@ -676,7 +692,7 @@ export default function OrderApp() {
 
             <div className="flex gap-2 p-2 border-t border-slate-100 bg-white">
               <button onClick={() => setScreen('input')} className="h-10 px-4 bg-slate-200 text-slate-700 rounded-lg font-bold text-sm">入力へ戻る</button>
-              <button onClick={onExport} className="flex-1 h-10 bg-emerald-600 text-white rounded-lg font-bold shadow text-sm">Excel書き出し</button>
+              <button onClick={onExport} className="flex-1 h-10 bg-emerald-600 text-white rounded-lg font-bold shadow text-sm">畑光Excel</button>
               <button onClick={onSave} className={`flex-1 h-10 rounded-lg font-bold shadow text-sm ${testMode ? 'bg-amber-500 text-white' : 'bg-blue-600 text-white'}`}>
                 {testMode ? 'テスト確定' : '確定保存'}
               </button>

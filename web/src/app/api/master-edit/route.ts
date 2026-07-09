@@ -9,7 +9,8 @@ type Action =
   | 'updateStore'
   | 'deleteStore'
   | 'setStoreProduct'
-  | 'removeStoreProduct';
+  | 'removeStoreProduct'
+  | 'setHatakoOrderSheet';
 
 export async function POST(req: NextRequest) {
   try {
@@ -97,6 +98,20 @@ export async function POST(req: NextRequest) {
           .eq('product_id', productId);
         if (error) throw error;
         return NextResponse.json({ success: true, message: '取扱から外しました' });
+      }
+      case 'setHatakoOrderSheet': {
+        const name = String(body.productName || '').trim();
+        const enabled = body.enabled !== false;
+        if (!name) throw new Error('商品名が必要です');
+        const { error } = await supabase
+          .from('products')
+          .update({ hatako_order_sheet: enabled })
+          .eq('name', name);
+        if (error) throw error;
+        return NextResponse.json({
+          success: true,
+          message: enabled ? `「${name}」を畑光発注書に掲載します` : `「${name}」を畑光発注書から除外しました`,
+        });
       }
       default:
         return NextResponse.json({ success: false, message: '不明な操作です' }, { status: 400 });

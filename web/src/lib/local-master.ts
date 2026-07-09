@@ -1,6 +1,7 @@
 import realMaster from '@/data/real-master.json';
 import { addDays, getWeekStart } from '@/lib/dates';
 import { buildCoefficientMap, DEFAULT_DAY_COEF, DEFAULT_WEATHER_COEF } from '@/lib/coefficients';
+import { mergeHatakoFlags, readLocalHatakoFlags } from '@/lib/hatako-order';
 
 export function fetchMasterFromLocalJson() {
   const storeOrder = realMaster.STORES.map((s) => s.name);
@@ -25,17 +26,23 @@ export function fetchMasterFromLocalJson() {
   const coef = { day: { ...DEFAULT_DAY_COEF }, weather: { ...DEFAULT_WEATHER_COEF } };
   const today = new Date().toISOString().slice(0, 10);
 
+  const productNames = realMaster.productRows.map(([name]) => String(name));
+  const localFlags = typeof window !== 'undefined' ? readLocalHatakoFlags() : {};
+  const hatakoOrderSheet = mergeHatakoFlags(productNames, {}, localFlags);
+
   return {
     success: true,
     localDev: true,
     products: realMaster.productRows.map(([name, orderUnit]) => ({
       name: String(name),
       orderUnit: Number(orderUnit) || 1,
+      hatakoOrderSheet: hatakoOrderSheet[String(name)] !== false,
     })),
     storeOrder,
     storeShortNames,
     storeProducts: storeProductsMap,
     storeProductMap,
+    hatakoOrderSheet,
     coefficientMap: buildCoefficientMap(coef),
     weatherOptions: Object.keys(DEFAULT_WEATHER_COEF),
     weatherCoefficients: coef.weather,
