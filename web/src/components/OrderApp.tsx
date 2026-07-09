@@ -19,12 +19,22 @@ import OrderLogPanel from '@/components/OrderLogPanel';
 import { normalizeBarcode } from '@/lib/barcode';
 import { injectTestLossData, type OrderSnapshot } from '@/lib/order-snapshot';
 
-type Screen = 'input' | 'result' | 'shelf' | 'history' | 'sales' | 'calendar' | 'label' | 'logs' | 'settings';
+import MobileOrderApp from '@/components/MobileOrderApp';
+import StaffNameBar from '@/components/StaffNameBar';
+import DeliverySummaryPanel from '@/components/DeliverySummaryPanel';
+import LossListPanel from '@/components/LossListPanel';
+import ShelfPhotoPanel from '@/components/ShelfPhotoPanel';
+import { useIsMobile } from '@/hooks/useIsMobile';
+
+type Screen = 'input' | 'result' | 'delivery' | 'losslist' | 'photos' | 'shelf' | 'history' | 'sales' | 'calendar' | 'label' | 'logs' | 'settings';
 type StoreState = Record<string, Record<string, { sales: number; loss: number }>>;
 
 const NAV: { key: Screen; label: string; icon: string }[] = [
   { key: 'input', label: '入力', icon: '✎' },
   { key: 'result', label: '確認', icon: '☑' },
+  { key: 'delivery', label: '納品', icon: '📦' },
+  { key: 'losslist', label: 'ロス一覧', icon: '📋' },
+  { key: 'photos', label: '棚写真', icon: '📷' },
   { key: 'shelf', label: '棚割り', icon: '▦' },
   { key: 'history', label: '商品別売上', icon: '📈' },
   { key: 'sales', label: '販売実績', icon: '💴' },
@@ -35,6 +45,7 @@ const NAV: { key: Screen; label: string; icon: string }[] = [
 ];
 
 export default function OrderApp() {
+  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [master, setMaster] = useState<MasterData | null>(null);
@@ -258,6 +269,12 @@ export default function OrderApp() {
     return calcAllProducts(master, storeState, dn, w);
   }, [master, orderDate, weather, storeState, holidayDates]);
 
+  useEffect(() => {
+    if (!isMobile || !master) return;
+    const r = computeResults();
+    if (r) setResults(r);
+  }, [isMobile, master, storeState, orderDate, weather, holidayDates, computeResults]);
+
   const onCalculate = () => {
     const r = computeResults();
     if (r) {
@@ -405,6 +422,39 @@ export default function OrderApp() {
     onWeatherChange: setWeather,
   };
 
+  if (isMobile) {
+    return (
+      <>
+        <MobileOrderApp
+          master={master}
+          orderDate={orderDate}
+          lossDate={lossDate}
+          weather={weather}
+          storeState={storeState}
+          activeStoreIdx={activeStoreIdx}
+          setActiveStoreIdx={setActiveStoreIdx}
+          results={results}
+          computeResults={computeResults}
+          barcodeMap={barcodeMap}
+          onOptimisticLossScan={onOptimisticLossScan}
+          onLogout={onLogout}
+          onToast={showToast}
+        />
+        {toast && (
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 toast-modern text-white text-center py-3 px-6 z-[110] text-sm font-medium">{toast}</div>
+        )}
+        {busy && (
+          <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-[120] flex items-center justify-center">
+            <div className="bg-white rounded-2xl p-8 flex flex-col items-center shadow-xl">
+              <div className="w-10 h-10 border-[3px] border-slate-200 border-t-emerald-500 rounded-full animate-spin" />
+              <p className="mt-3 font-semibold text-slate-700">処理中...</p>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="app-shell">
       {/* ─── LEFT PANE ─── */}
@@ -430,6 +480,9 @@ export default function OrderApp() {
 
       {/* ─── CONTENT ─── */}
       <main className="pane-content">
+        <div className="pane-top-bar">
+          <StaffNameBar />
+        </div>
         <TestModeBar
           testMode={testMode}
           onTestModeChange={setTestModePersist}
@@ -549,6 +602,52 @@ export default function OrderApp() {
               );
             })()}
           </div>
+        )}
+
+        {screen === 'delivery' && (
+          <DeliverySummaryPanel
+            master={master}
+            orderDate={orderDate}
+            weather={weather}
+            results={results}
+            onCompute={computeResults}
+          />
+        )}
+
+        {screen === 'losslist' && (
+          <div className="flex flex-col h-full">
+            <div className="pane-header">
+              <div className="segment-control">
+                {master.storeOrder.map((store, i) => (
+                  <button key={store} type="button" onClick={() => setActiveStoreIdx(i)} className={`segment-btn ${i === activeStoreIdx ? 'active' : ''}`}>
+                    {master.storeShortNames[store] || store}
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={openLossScanner} className="text-xs font-semibold text-orange-700 bg-orange-50 hover:bg-orange-100 px-3 py-2 rounded-lg shrink-0">
+                📷 ロススキャン
+              </button>
+            </div>
+            <LossListPanel
+              master={master}
+              storeState={storeState}
+              activeStore={activeStore}
+              lossDate={lossDate}
+              onScan={openLossScanner}
+            />
+          </div>
+        )}
+
+        {screen === 'photos' && (
+          <ShelfPhotoPanel
+            master={master}
+            activeStore={activeStore}
+            onStoreChange={(s) => {
+              const i = master.storeOrder.indexOf(s);
+              if (i >= 0) setActiveStoreIdx(i);
+            }}
+            onToast={showToast}
+          />
         )}
 
         {screen === 'shelf' && (
